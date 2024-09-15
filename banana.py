@@ -457,4 +457,188 @@ class Banana:
                                     self.log(f"{white}Completed task {yellow}{quest_name}: {green}Success")
                                 else:
                                     self.log(
-                                        f"{white}Completed task {yellow}{quest_name
+                                        f"{white}Completed task {yellow}{quest_name}: {red}Failure (need to do it yourself)"
+                                    )
+                            elif achieve_status and not claim_status:
+                                claim_quest = self.claim_quest(
+                                    token=token, quest_id=quest_id
+                                ).json()
+                                quest_status = claim_quest["msg"]
+                                if quest_status == "Success":
+                                    self.log(f"{white}Do the task {yellow}{quest_name}: {green}Success")
+                                else:
+                                    self.log(
+                                        f"{white}Do the task {yellow}{quest_name}: {red}Failure (need to do it yourself)"
+                                    )
+                            else:
+                                self.log(f"{white}Do the task {yellow}{quest_name}: {green}Success")
+
+                        while True:
+                            claim_quest_lottery = self.claim_quest_lottery(
+                                token=token
+                            ).json()
+                            quest_lottery_status = claim_quest_lottery["msg"]
+                            if quest_lottery_status == "Success":
+                                self.log(
+                                    f"{white}Claim Quest {green}Success"
+                                )
+                                continue
+                            else:
+                                self.log(
+                                    f"{red}There are no quests to claim"
+                                )
+                                break
+                    else:
+                        self.log(f"{yellow}Automatically perform tasks: {red}OFF")
+
+                    # Claim invite
+					if self.auto_claim_invite:
+						self.log(f"{yellow}Auto Claim Invite: {green}ON")
+						get_invite_list = self.invite_list(token=token).json()
+						invite = get_invite_list["data"]
+						if invite is None:
+							self.log(f"{white}Claim Invite: {red}No friends")
+						else:
+							self.log(f"{white}Claim Invite: {green}Friends available")
+							claim_status = invite["claim"]
+							if claim_status:
+								claim_invite = self.claim_invite(token=token)
+								claim_invite_status = claim_invite["msg"]
+								if claim_invite_status == "Success":
+									self.log(f"{white}Claim Invite: {green}Success")
+								else:
+									self.log(f"{white}Claim Invite: {red}Failed")
+							else:
+								self.log(
+								f"{white}Claim Invite: {red}No invite lottery to claim"
+								)
+					else:
+						self.log(f"{yellow}Auto Claim Invite: {red}OFF")
+
+					# Get lottery info
+					if self.auto_claim_and_harvest:
+						self.log(f"{yellow}Auto Harvest Bananas: {green}ON")
+						while True:
+							try:
+								get_lottery_info = self.lottery_info(token=token).json()
+								lottery_data = get_lottery_info.get("data", {})
+								lottery_status = lottery_data.get("countdown_end", False)
+								lottery_count = lottery_data.get("remain_lottery_count", 0)
+								
+								remaining_time = self.calculate_remaining_time(lottery_data)
+								remaining_time_str = f"{int(remaining_time)} minutes" if remaining_time > 0 else "0 minutes"
+								
+								self.log(f"{white}Remaining time to harvest: {green}{remaining_time_str}")
+
+								get_user_info = self.user_info(token=token).json()
+								speedup_count = get_user_info["data"]["speedup_count"]
+
+								while remaining_time > 60 and speedup_count > 0:
+									self.log(f"{yellow}Using Speedup. Remaining: {white}{speedup_count}")
+									do_speedup_response = self.do_speedup(token=token).json()
+									
+									if do_speedup_response["code"] == 0 and do_speedup_response["msg"] == "Success":
+										speedup_count = do_speedup_response["data"]["speedup_count"]
+										new_lottery_info = do_speedup_response["data"]["lottery_info"]
+										remaining_time = self.calculate_remaining_time(new_lottery_info)
+										remaining_time_str = f"{int(remaining_time)} minutes" if remaining_time > 0 else "0 minutes"
+										self.log(f"{green}Speedup used successfully. Remaining time: {white}{remaining_time_str}")
+									else:
+										self.log(f"{red}Speedup failed: {do_speedup_response['msg']}")
+										break
+
+								if speedup_count == 0:
+									self.log(f"{yellow}No more Speedup available")
+
+								if lottery_status:
+									claim_lottery = self.claim_lottery(token=token).json()
+									claim_status = claim_lottery.get("msg")
+									if claim_status == "Success":
+										self.log(f"{white}Claim Banana: {green}Success")
+									else:
+										self.log(f"{white}Claim Banana: {red}Failed")
+										self.log(f"{red}Error details: {claim_lottery}")
+								elif lottery_count > 0:
+									do_lottery = self.do_lottery(token=token).json()
+									lottery_status = do_lottery.get("msg")
+									if lottery_status == "Success":
+										banana_data = do_lottery.get("data", {})
+										banana_name = banana_data.get("name", "Unknown")
+										usdt_value = banana_data.get("sell_exchange_usdt", 0)
+										peel_value = banana_data.get("sell_exchange_peel", 0)
+										banana_id = banana_data.get("banana_id")
+										
+										self.log(f"{white}Harvest Banana: {green}Success")
+										self.log(f"{white}Received: {green}{banana_name} - {usdt_value} USDT - {peel_value} Peel")
+										
+										ads_response = self.claim_ads_income(token=token, ad_type=2).json()
+										if ads_response["code"] == 0 and ads_response["msg"] == "Success":
+											income = ads_response["data"]["income"]
+											peels = ads_response["data"]["peels"]
+											speedup = ads_response["data"]["speedup"]
+											self.log(f"{green}Ad view successful: received {white}{income} USDT - {peels} Peels - {speedup} Speedup")
+										else:
+											self.log(f"{red}Ad view failed: {ads_response['msg']}")
+										
+										share_response = self.do_share(token=token, banana_id=banana_id).json()
+										if share_response["code"] == 0 and share_response["msg"] == "Success":
+											self.log(f"{green}Share banana successful!")
+										else:
+											self.log(f"{red}Share banana failed: {share_response['msg']}")
+									else:
+										self.log(f"{white}Harvest Banana: {red}Failed")
+										self.log(f"{red}Error details: {do_lottery}")
+								else:
+									self.log(f"{white}Claim and Harvest Banana: {yellow}Not time for harvesting yet")
+									break
+
+							except Exception as e:
+								self.log(f"{red}Error during harvest process: {str(e)}")
+								break
+
+					else:
+						self.log(f"{yellow}Auto Harvest Bananas: {red}OFF")
+
+					# Equip banana
+					if self.auto_equip_banana:
+						self.log(f"{yellow}Equip best banana: {green}ON")
+						get_banana_list = self.banana_list(token=token).json()
+						banana_list = get_banana_list["data"]["banana_list"]
+						banana_with_max_peel = max(
+							(banana for banana in banana_list if banana["count"] > 0),
+							key=lambda b: b["daily_peel_limit"],
+						)
+						banana_id = banana_with_max_peel["banana_id"]
+						banana_name = banana_with_max_peel["name"]
+						banana_peel_limit = banana_with_max_peel["daily_peel_limit"]
+						banana_peel_price = banana_with_max_peel["sell_exchange_peel"]
+						banana_usdt_price = banana_with_max_peel["sell_exchange_usdt"]
+
+						equip_banana = self.equip_banana(
+							token=token, banana_id=banana_id
+						).json()
+						equip_status = equip_banana["msg"]
+						if equip_status == "Success":
+							self.log(
+								f"{green}Equipping best banana: {white}{banana_name} - {green}Daily Peel Limit: {white}{banana_peel_limit} - {green}Peel Price: {white}{banana_peel_price} - {green}USDT Price: {white}{banana_usdt_price}"
+							)
+						else:
+							self.log(f"{white}Equip Banana: {red}Failed")
+					else:
+						self.log(f"{yellow}Equip best banana: {red}OFF")
+
+				except Exception as e:
+                    self.log(f"{red}Đăng nhập thất bại, thử lại sau!")
+					
+			print()
+			wait_time = 60 * 60
+			self.log(f"{yellow}Waiting {int(wait_time/60)} minutes before continuing!")
+			time.sleep(wait_time)
+
+if __name__ == "__main__":
+	try:
+		banana = Banana()
+		banana.main()
+	except KeyboardInterrupt:
+		sys.exit()
+
